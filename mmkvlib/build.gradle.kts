@@ -34,6 +34,7 @@ android {
 
 dependencies {
 
+    implementation(libs.androidx.annotation.jvm)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -41,4 +42,5 @@ dependencies {
     api(libs.mmkv)
     implementation(libs.startup)
     implementation(libs.kotlin.reflect)
+    implementation(libs.kotlinx.coroutines.android)
 }

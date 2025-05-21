@@ -17,55 +17,63 @@
 package com.github.sceneren.mmkv
 
 import android.os.Parcelable
+import com.github.sceneren.mmkv.property.MMKVMapProperty
+import com.github.sceneren.mmkv.property.MMKVProperty
+import com.github.sceneren.mmkv.property.MMKVStateFlowProperty
 import com.tencent.mmkv.MMKV
-import kotlin.properties.ReadWriteProperty
-import kotlin.reflect.KProperty
+import kotlinx.coroutines.flow.StateFlow
 import kotlin.reflect.KProperty1
-import kotlin.reflect.full.declaredMembers
+import kotlin.reflect.full.memberProperties
 import kotlin.reflect.jvm.isAccessible
-
-interface IMMKVOwner {
-    val mmapID: String
-    val kv: MMKV
-    fun clearAllKV() = kv.clearAll()
-}
 
 open class MMKVOwner(override val mmapID: String) : IMMKVOwner {
     override val kv: MMKV by lazy { MMKV.mmkvWithID(mmapID) }
 }
 
-fun IMMKVOwner.mmkvInt(default: Int = 0) =
-    MMKVProperty({ kv.decodeInt(it, default) }, { kv.encode(first, second) })
+interface IMMKVOwner {
+    val mmapID: String
 
-fun IMMKVOwner.mmkvLong(default: Long = 0L) =
-    MMKVProperty({ kv.decodeLong(it, default) }, { kv.encode(first, second) })
+    val kv: MMKV
 
-fun IMMKVOwner.mmkvBool(default: Boolean = false) =
-    MMKVProperty({ kv.decodeBool(it, default) }, { kv.encode(first, second) })
+    fun mmkvInt(default: Int = 0) =
+        MMKVProperty({ kv.decodeInt(it, default) }, { kv.encode(first, second) })
 
-fun IMMKVOwner.mmkvFloat(default: Float = 0f) =
-    MMKVProperty({ kv.decodeFloat(it, default) }, { kv.encode(first, second) })
+    fun mmkvLong(default: Long = 0L) =
+        MMKVProperty({ kv.decodeLong(it, default) }, { kv.encode(first, second) })
 
-fun IMMKVOwner.mmkvDouble(default: Double = 0.0) =
-    MMKVProperty({ kv.decodeDouble(it, default) }, { kv.encode(first, second) })
+    fun mmkvBool(default: Boolean = false) =
+        MMKVProperty({ kv.decodeBool(it, default) }, { kv.encode(first, second) })
 
-fun IMMKVOwner.mmkvString() =
-    MMKVProperty({ kv.decodeString(it) }, { kv.encode(first, second) })
+    fun mmkvFloat(default: Float = 0f) =
+        MMKVProperty({ kv.decodeFloat(it, default) }, { kv.encode(first, second) })
 
-fun IMMKVOwner.mmkvString(default: String) =
-    MMKVProperty({ kv.decodeString(it) ?: default }, { kv.encode(first, second) })
+    fun mmkvDouble(default: Double = 0.0) =
+        MMKVProperty({ kv.decodeDouble(it, default) }, { kv.encode(first, second) })
 
-fun IMMKVOwner.mmkvStringSet() =
-    MMKVProperty({ kv.decodeStringSet(it) }, { kv.encode(first, second) })
+    fun mmkvString() =
+        MMKVProperty({ kv.decodeString(it) }, { kv.encode(first, second) })
 
-fun IMMKVOwner.mmkvStringSet(default: Set<String>) =
-    MMKVProperty({ kv.decodeStringSet(it) ?: default }, { kv.encode(first, second) })
+    fun mmkvString(default: String) =
+        MMKVProperty({ kv.decodeString(it) ?: default }, { kv.encode(first, second) })
 
-fun IMMKVOwner.mmkvBytes() =
-    MMKVProperty({ kv.decodeBytes(it) }, { kv.encode(first, second) })
+    fun mmkvStringSet() =
+        MMKVProperty({ kv.decodeStringSet(it) }, { kv.encode(first, second) })
 
-fun IMMKVOwner.mmkvBytes(default: ByteArray) =
-    MMKVProperty({ kv.decodeBytes(it) ?: default }, { kv.encode(first, second) })
+    fun mmkvStringSet(default: Set<String>) =
+        MMKVProperty({ kv.decodeStringSet(it) ?: default }, { kv.encode(first, second) })
+
+    fun mmkvBytes() =
+        MMKVProperty({ kv.decodeBytes(it) }, { kv.encode(first, second) })
+
+    fun mmkvBytes(default: ByteArray) =
+        MMKVProperty({ kv.decodeBytes(it) ?: default }, { kv.encode(first, second) })
+
+    fun <V> MMKVProperty<V>.asStateFlow() = MMKVStateFlowProperty(this)
+
+    fun <V> MMKVProperty<V>.asMap() = MMKVMapProperty(this)
+
+    fun clearAllKV() = kv.clearAll()
+}
 
 inline fun <reified T : Parcelable> IMMKVOwner.mmkvParcelable() =
     MMKVProperty({ kv.decodeParcelable(it, T::class.java) }, { kv.encode(first, second) })
@@ -75,33 +83,23 @@ inline fun <reified T : Parcelable> IMMKVOwner.mmkvParcelable(default: T) =
         { kv.decodeParcelable(it, T::class.java) ?: default },
         { kv.encode(first, second) })
 
-
-val IMMKVOwner.allKV: Map<String, Any?>
-    get() = HashMap<String, Any?>().also { map ->
-        this::class.declaredMembers.filerProperties<KProperty1<IMMKVOwner, *>>("kv", "mmapID")
-            .forEach { property ->
-                property.isAccessible = true
-                val value = property.get(this)
-                map[property.name] = value
-                property.isAccessible = false
+fun IMMKVOwner.getAllKV(): Map<String, Any?> = buildMap {
+    val types = arrayOf(
+        MMKVProperty::class,
+        MMKVStateFlowProperty::class,
+        MMKVMapProperty::class
+    )
+    this@getAllKV::class.memberProperties
+        .filterIsInstance<KProperty1<IMMKVOwner, *>>()
+        .forEach { property ->
+            property.isAccessible = true
+            val delegate = property.getDelegate(this@getAllKV)
+            if (types.any { it.isInstance(delegate) }) {
+                this[property.name] = when (val value = property.get(this@getAllKV)) {
+                    is StateFlow<*> -> value.value
+                    else -> value
+                }
             }
-    }
-
-inline fun <reified R : KProperty1<*, *>> Collection<*>.filerProperties(vararg exceptNames: String): List<R> =
-    ArrayList<R>().also { destination ->
-        for (element in this) if (element is R && !exceptNames.contains(element.name)) destination.add(
-            element
-        )
-    }
-
-class MMKVProperty<V>(
-    private val decode: (String) -> V,
-    private val encode: Pair<String, V>.() -> Boolean
-) : ReadWriteProperty<IMMKVOwner, V> {
-    override fun getValue(thisRef: IMMKVOwner, property: KProperty<*>): V =
-        decode(property.name)
-
-    override fun setValue(thisRef: IMMKVOwner, property: KProperty<*>, value: V) {
-        encode((property.name) to value)
-    }
+            property.isAccessible = false
+        }
 }
