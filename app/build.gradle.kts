@@ -64,6 +64,9 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
 
     implementation(project(":mmkvlib"))
+    
+//    implementation("com.github.sceneren:MMKV_KTX:0.0.1")
+
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)

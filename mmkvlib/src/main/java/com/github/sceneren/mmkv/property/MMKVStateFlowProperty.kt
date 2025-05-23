@@ -19,6 +19,7 @@ package com.github.sceneren.mmkv.property
 import com.github.sceneren.mmkv.IMMKVOwner
 import kotlinx.coroutines.ExperimentalForInheritanceCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import kotlin.properties.ReadOnlyProperty
 import kotlin.reflect.KProperty
 
@@ -51,6 +52,6 @@ class MMKVFlow<V>(
 
     override fun compareAndSet(expect: V, update: V): Boolean =
         flow.compareAndSet(expect, update).also { setSuccess ->
-            if (setSuccess) setMMKVValue(value)
+            if (setSuccess) setMMKVValue(update)
         }
 }

@@ -17,6 +17,8 @@
 package com.github.sceneren.mmkv
 
 import android.os.Parcelable
+import androidx.lifecycle.LiveData
+import com.github.sceneren.mmkv.property.MMKVLiveDataProperty
 import com.github.sceneren.mmkv.property.MMKVMapProperty
 import com.github.sceneren.mmkv.property.MMKVProperty
 import com.github.sceneren.mmkv.property.MMKVStateFlowProperty
@@ -68,6 +70,8 @@ interface IMMKVOwner {
     fun mmkvBytes(default: ByteArray) =
         MMKVProperty({ kv.decodeBytes(it) ?: default }, { kv.encode(first, second) })
 
+    fun <V> MMKVProperty<V>.asLiveData() = MMKVLiveDataProperty(this)
+
     fun <V> MMKVProperty<V>.asStateFlow() = MMKVStateFlowProperty(this)
 
     fun <V> MMKVProperty<V>.asMap() = MMKVMapProperty(this)
@@ -86,6 +90,7 @@ inline fun <reified T : Parcelable> IMMKVOwner.mmkvParcelable(default: T) =
 fun IMMKVOwner.getAllKV(): Map<String, Any?> = buildMap {
     val types = arrayOf(
         MMKVProperty::class,
+        MMKVLiveDataProperty::class,
         MMKVStateFlowProperty::class,
         MMKVMapProperty::class
     )
@@ -96,6 +101,7 @@ fun IMMKVOwner.getAllKV(): Map<String, Any?> = buildMap {
             val delegate = property.getDelegate(this@getAllKV)
             if (types.any { it.isInstance(delegate) }) {
                 this[property.name] = when (val value = property.get(this@getAllKV)) {
+                    is LiveData<*> -> value.value
                     is StateFlow<*> -> value.value
                     else -> value
                 }

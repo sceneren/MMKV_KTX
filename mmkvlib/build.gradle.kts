@@ -43,4 +43,5 @@ dependencies {
     implementation(libs.startup)
     implementation(libs.kotlin.reflect)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.lifecycle.livedata.core.ktx)
 }
